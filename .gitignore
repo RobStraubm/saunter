@@ -1,0 +1,22 @@
+# Persönliche Konfiguration und Daten (bleiben lokal)
+config.json
+config.json.tmp
+*.db
+*.db-wal
+*.db-shm
+workouts.csv
+
+# Umgebungen und Build-Artefakte
+venv/
+.venv/
+.build/
+__pycache__/
+.DS_Store
+
+# Signierte Kurzbefehle (an ein Apple-Konto gebunden)
+*.shortcut
+
+# Lokale Ordner der Originalinstallation (nicht Teil des Repos)
+Kurzbefehle/
+reference/
+.vor-aenderung-*/
