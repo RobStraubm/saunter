@@ -72,7 +72,7 @@ struct WidgetJourneyMap: View {
                     context.stroke(path(progress.walkedPath), with: .color(Palette.series),
                                    style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round))
                 }
-                YouMarker()
+                YouMarker(pulsing: false)
                     .scaleEffect(0.8)
                     .position(map.point(progress.position, height: size.height))
             } else {

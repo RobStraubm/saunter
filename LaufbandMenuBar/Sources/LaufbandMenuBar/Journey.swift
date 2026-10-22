@@ -350,15 +350,19 @@ struct StageDot: View {
 }
 
 struct YouMarker: View {
+    /// Endlos-Animation laeuft mit voller Bildrate; im Schreibtisch-Widget kostet das dauerhaft CPU.
+    var pulsing = true
     @State private var pulse = false
 
     var body: some View {
         ZStack {
-            Circle()
-                .fill(Palette.series.opacity(0.35))
-                .frame(width: 44, height: 44)
-                .scaleEffect(pulse ? 1.25 : 0.7)
-                .opacity(pulse ? 0 : 1)
+            if pulsing {
+                Circle()
+                    .fill(Palette.series.opacity(0.35))
+                    .frame(width: 44, height: 44)
+                    .scaleEffect(pulse ? 1.25 : 0.7)
+                    .opacity(pulse ? 0 : 1)
+            }
             Circle()
                 .fill(Palette.series)
                 .frame(width: 18, height: 18)
@@ -367,6 +371,7 @@ struct YouMarker: View {
             Image(systemName: "figure.walk").font(.system(size: 8, weight: .bold)).foregroundStyle(.white)
         }
         .onAppear {
+            guard pulsing else { return }
             withAnimation(.easeOut(duration: 1.8).repeatForever(autoreverses: false)) { pulse = true }
         }
     }
