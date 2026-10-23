@@ -1,6 +1,6 @@
 # Saunter
 
-[![CI](https://github.com/RobStraubm/laufband/actions/workflows/ci.yml/badge.svg)](https://github.com/RobStraubm/laufband/actions/workflows/ci.yml)
+[![CI](https://github.com/RobStraubm/saunter/actions/workflows/ci.yml/badge.svg)](https://github.com/RobStraubm/saunter/actions/workflows/ci.yml)
 
 *Walk while you work.* Saunter turns a FitShow walking pad into a Mac companion: control, history, streaks and a virtual journey around Lake Constance.
 
