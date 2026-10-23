@@ -34,8 +34,8 @@ INFO_INCLINE = 3
 INFO_TOTAL = 4
 
 CSV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "workouts.csv")
-REMINDER_LIST = "Laufband"
-SHORTCUT_NAME = "LaufbandWorkout"
+REMINDER_LIST = "Saunter"
+SHORTCUT_NAME = "SaunterWorkout"
 # Zielnummer fuer den Health-Export steht lokal in config.json ("imessage_target"),
 # nicht im Code. Ohne Eintrag wird keine iMessage verschickt.
 def _imessage_target() -> str:
@@ -46,7 +46,7 @@ def _imessage_target() -> str:
         return ""
 
 
-TRIGGER_PREFIX = "LAUFBAND: "
+TRIGGER_PREFIX = "SAUNTER: "
 
 
 def build_packet(payload: bytes) -> bytes:
@@ -163,7 +163,7 @@ end tell
 
 
 def build_shortcut_link(summary: dict) -> str:
-    """shortcuts://-Link, der den Kurzbefehl 'LaufbandWorkout' mit den
+    """shortcuts://-Link, der den Kurzbefehl 'SaunterWorkout' mit den
     Workout-Daten als Text-Input startet (offizielles URL-Schema von Apple)."""
     payload = json.dumps(summary, ensure_ascii=False)
     query = urllib.parse.urlencode({"name": SHORTCUT_NAME, "input": "text", "text": payload})

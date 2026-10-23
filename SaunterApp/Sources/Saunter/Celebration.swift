@@ -6,7 +6,7 @@ import AppKit
 enum Applause {
     private static var url: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Laufband/applaus-v1.wav")
+            .appendingPathComponent("Saunter/applaus-v1.wav")
     }
 
     static func play() {

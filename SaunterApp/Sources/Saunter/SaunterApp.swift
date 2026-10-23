@@ -3,16 +3,16 @@ import AppKit
 import Combine
 
 let apiBase = URL(string: "http://127.0.0.1:8765/api/")!
-let openDashboardNotification = Notification.Name("de.straubmueller.laufband.openDashboard")
-let openStoryNotification = Notification.Name("de.straubmueller.laufband.openStory")
-let openJourneyNotification = Notification.Name("de.straubmueller.laufband.openJourney")
-let openSetupNotification = Notification.Name("de.straubmueller.laufband.openSetup")
+let openDashboardNotification = Notification.Name("de.straubmueller.saunter.openDashboard")
+let openStoryNotification = Notification.Name("de.straubmueller.saunter.openStory")
+let openJourneyNotification = Notification.Name("de.straubmueller.saunter.openJourney")
+let openSetupNotification = Notification.Name("de.straubmueller.saunter.openSetup")
 
 func postOpen(_ name: Notification.Name) {
     DistributedNotificationCenter.default().postNotificationName(name, object: nil, userInfo: nil, deliverImmediately: true)
 }
 
-/// Nimmt laufband://-Links entgegen (Kurzbefehle, Kontrollzentrum, Spotlight, Raycast …).
+/// Nimmt saunter://-Links entgegen (Kurzbefehle, Kontrollzentrum, Spotlight, Raycast …).
 final class AppDelegate: NSObject, NSApplicationDelegate {
     @MainActor static var model: TreadmillModel?
 
@@ -252,7 +252,7 @@ final class TreadmillModel: ObservableObject {
         errorText = nil
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/launchctl")
-        p.arguments = ["kickstart", "-k", "gui/\(getuid())/de.straubmueller.laufbanddaemon"]
+        p.arguments = ["kickstart", "-k", "gui/\(getuid())/de.straubmueller.saunter.daemon"]
         do {
             try p.run()
         } catch {
@@ -477,7 +477,7 @@ struct PanelView: View {
                     Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Palette.critical)
                     Text("Daemon läuft nicht").font(.headline)
                 }
-                Text("Details: laufband log").font(.caption.monospaced()).foregroundStyle(Palette.ink2)
+                Text("Details: saunter log").font(.caption.monospaced()).foregroundStyle(Palette.ink2)
                 ReconnectButton(model: model)
                     .buttonStyle(.glass)
             }
@@ -763,7 +763,7 @@ struct MenuBarLabel: View {
 }
 
 @main
-struct LaufbandMenuBarApp: App {
+struct SaunterApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var model: TreadmillModel
 
@@ -785,7 +785,7 @@ struct LaufbandMenuBarApp: App {
         }
         .menuBarExtraStyle(.window)
 
-        Window("Laufband", id: "dashboard") {
+        Window("Saunter", id: "dashboard") {
             DashboardView(live: model)
         }
         .windowStyle(.hiddenTitleBar)

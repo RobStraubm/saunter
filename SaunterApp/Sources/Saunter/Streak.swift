@@ -126,10 +126,10 @@ enum OfficeNetwork {
         defaults.set(Array((seenDays + [day]).suffix(60)), forKey: "office.seenDays")
     }
 
-    /// MAC-Adresse des Routers im aktuellen Netz, z. B. "bc:cf:4f:d0:b8:99"; nil ohne Netz.
+    /// MAC-Adresse des Routers im aktuellen Netz, z. B. "a4:2b:b0:12:34:56"; nil ohne Netz.
     /// Aus der Netzwerk-Konfiguration des Systems - `arp` sieht die Tabelle ohne Freigabe "Lokales Netzwerk" nicht.
     static func currentGateway() -> String? {
-        guard let store = SCDynamicStoreCreate(nil, "Laufband" as CFString, nil, nil),
+        guard let store = SCDynamicStoreCreate(nil, "Saunter" as CFString, nil, nil),
               let global = SCDynamicStoreCopyValue(store, "State:/Network/Global/IPv4" as CFString) as? [String: Any],
               let service = global["PrimaryService"] as? String,
               let ipv4 = SCDynamicStoreCopyValue(store, "State:/Network/Service/\(service)/IPv4" as CFString) as? [String: Any]

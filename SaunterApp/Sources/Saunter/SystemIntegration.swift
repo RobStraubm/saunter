@@ -171,10 +171,10 @@ extension TreadmillModel {
         if commitDelay == 0 { commitTarget() }
     }
 
-    // MARK: laufband://-Links
+    // MARK: saunter://-Links
 
     func handleURL(_ url: URL) {
-        guard url.scheme?.lowercased() == "laufband" else { return }
+        guard url.scheme?.lowercased() == "saunter" else { return }
         let action = (url.host(percentEncoded: false) ?? "").lowercased()
         let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
         let number = items.first { ["wert", "value", "speed", "tempo"].contains($0.name.lowercased()) }?.value
@@ -224,7 +224,7 @@ extension TreadmillModel {
             case "setup": postOpen(openSetupNotification)
             default: postOpen(openDashboardNotification)
             }
-            let prefix = value("out") ?? "/tmp/laufband-capture"
+            let prefix = value("out") ?? "/tmp/saunter-capture"
             // nur in Temp-Verzeichnisse schreiben, damit ein fremder Link keine Dateien woanders anlegen kann
             guard prefix.hasPrefix("/tmp/") || prefix.hasPrefix("/private/tmp/"), !prefix.contains("..") else { return }
             Task { @MainActor in

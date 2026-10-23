@@ -1,27 +1,27 @@
 #!/bin/zsh
-# Richtet die Laufband-Steuerung auf einem (neuen) Mac ein – aus einem Klon dieses Repos
-# oder aus der Sicherung im Google-Drive-Ordner „Laufband“ (angelegt mit sichern.sh).
+# Richtet Saunter auf einem (neuen) Mac ein – aus einem Klon dieses Repos
+# oder aus der Sicherung im Google-Drive-Ordner „Saunter“ (angelegt mit sichern.sh).
 #
 #   ./install.sh                                                  (im Repo-Ordner)
-#   zsh ".../Meine Ablage/Laufband/treadmill-remote/install.sh"   (aus der Sicherung)
+#   zsh ".../Meine Ablage/Saunter/saunter/install.sh"   (aus der Sicherung)
 #
 # Was passiert:
-#   1. Projekt nach ~/laufband kopieren (inkl. laufband.db, falls vorhanden);
+#   1. Projekt nach ~/saunter kopieren (inkl. saunter.db, falls vorhanden);
 #      ohne eigene config.json wird sie aus config.example.json angelegt
 #   2. Python-Umgebung neu anlegen (die gesicherte venv passt nur zum alten Mac)
 #   3. Laufband per Bluetooth suchen und die Adresse in config.json eintragen
 #      (die Bluetooth-Adresse ist auf jedem Mac eine andere)
 #   4. Routen, Applaus-Ton und App-Einstellungen (Erfolge) zurückspielen
-#   5. Laufband.app bauen (oder die gesicherte App übernehmen)
-#   6. Autostart (LaunchAgents), Terminal-Befehl `laufband` und Claude-MCP einrichten
+#   5. Saunter.app bauen (oder die gesicherte App übernehmen)
+#   6. Autostart (LaunchAgents), Terminal-Befehl `saunter` und Claude-MCP einrichten
 #
 # Vorher auf dem ALTEN Mac den Daemon beenden – das Band erlaubt nur eine Verbindung:
-#   launchctl bootout gui/$(id -u)/de.straubmueller.laufbanddaemon
+#   launchctl bootout gui/$(id -u)/de.straubmueller.saunter.daemon
 set -euo pipefail
 
-SRC="$(cd "$(dirname "$0")" && pwd)"          # Repo-Ordner bzw. .../Laufband/treadmill-remote
-BACKUP="$(dirname "$SRC")"                    # .../Laufband (nur bei Sicherung relevant)
-DEST="$HOME/laufband"
+SRC="$(cd "$(dirname "$0")" && pwd)"          # Repo-Ordner bzw. .../Saunter/saunter
+BACKUP="$(dirname "$SRC")"                    # .../Saunter (nur bei Sicherung relevant)
+DEST="$HOME/saunter"
 UID_=$(id -u)
 
 say() { print -P "\n%B==> $1%b"; }
@@ -54,8 +54,8 @@ echo "Python: $PY ($("$PY" -V))"
 # ---------------------------------------------------------------- 1. Projekt kopieren
 say "Projekt nach $DEST kopieren"
 if [[ "$SRC" != "$DEST" ]]; then
-  if [[ -e "$DEST/laufband.db" ]]; then
-    echo "Achtung: $DEST existiert schon mit einer laufband.db."
+  if [[ -e "$DEST/saunter.db" ]]; then
+    echo "Achtung: $DEST existiert schon mit einer saunter.db."
     read -q "?Überschreiben mit der Sicherung? [j/N] " || { echo; exit 1; }
     echo
   fi
@@ -71,7 +71,7 @@ import datetime, json
 p = "config.json"; c = json.load(open(p, encoding="utf-8")); c["streak_start"] = datetime.date.today().isoformat()
 json.dump(c, open(p, "w", encoding="utf-8"), indent=2, ensure_ascii=False); open(p, "a").write("\n")
 EOF
-  echo "config.json aus config.example.json angelegt – Größe, Gewicht und iMessage-Ziel bei Bedarf anpassen."
+  echo "config.json aus config.example.json angelegt – Größe, Gewicht und Health-Export stellst du in der App unter „Einrichtung“ ein."
 fi
 
 # ---------------------------------------------------------------- 2. Python-Umgebung
@@ -125,33 +125,32 @@ json.dump(c, open(p, "w"), indent=2, ensure_ascii=False); open(p, "a").write("\n
 EOF
   echo "Adresse $ADDR in config.json eingetragen."
 else
-  echo "Keine Adresse gewählt – später in $DEST/config.json bei \"address\" eintragen"
-  echo "und den Daemon neu starten: launchctl kickstart -k gui/$UID_/de.straubmueller.laufbanddaemon"
+  echo "Keine Adresse gewählt – später in der App unter „Einrichtung“ suchen"
 fi
 
 # ---------------------------------------------------------------- 4. Daten zurückspielen
 say "Routen, Einstellungen und Erfolge zurückspielen"
-if [[ -d "$BACKUP/Application Support/Laufband" ]]; then
-  mkdir -p "$HOME/Library/Application Support/Laufband"
-  rsync -a "$BACKUP/Application Support/Laufband/" "$HOME/Library/Application Support/Laufband/"
+if [[ -d "$BACKUP/Application Support/Saunter" ]]; then
+  mkdir -p "$HOME/Library/Application Support/Saunter"
+  rsync -a "$BACKUP/Application Support/Saunter/" "$HOME/Library/Application Support/Saunter/"
 fi
-if [[ -f "$BACKUP/Einstellungen/de.straubmueller.laufband.plist" ]]; then
-  pkill -x Laufband 2>/dev/null || true
-  defaults import de.straubmueller.laufband "$BACKUP/Einstellungen/de.straubmueller.laufband.plist"
+if [[ -f "$BACKUP/Einstellungen/de.straubmueller.saunter.plist" ]]; then
+  pkill -x Saunter 2>/dev/null || true
+  defaults import de.straubmueller.saunter "$BACKUP/Einstellungen/de.straubmueller.saunter.plist"
 fi
 
 # ---------------------------------------------------------------- 5. App
-say "Laufband.app bauen"
+say "Saunter.app bauen"
 mkdir -p "$HOME/Applications"
-if (cd LaufbandMenuBar && ./build_app.sh); then
+if (cd Saunter && ./build_app.sh); then
   :
-elif [[ -d "$BACKUP/Laufband.app" ]]; then
+elif [[ -d "$BACKUP/Saunter.app" ]]; then
   echo "Bauen fehlgeschlagen (Command Line Tools 26 nötig) – nehme die gesicherte App."
-  rm -rf "$HOME/Applications/Laufband.app"
-  ditto "$BACKUP/Laufband.app" "$HOME/Applications/Laufband.app"
-  xattr -dr com.apple.quarantine "$HOME/Applications/Laufband.app" 2>/dev/null || true
-  codesign --force --sign - --timestamp=none "$HOME/Applications/Laufband.app"
-  /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$HOME/Applications/Laufband.app"
+  rm -rf "$HOME/Applications/Saunter.app"
+  ditto "$BACKUP/Saunter.app" "$HOME/Applications/Saunter.app"
+  xattr -dr com.apple.quarantine "$HOME/Applications/Saunter.app" 2>/dev/null || true
+  codesign --force --sign - --timestamp=none "$HOME/Applications/Saunter.app"
+  /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$HOME/Applications/Saunter.app"
 else
   echo "App konnte nicht gebaut werden und keine gesicherte App gefunden."
 fi
@@ -159,17 +158,17 @@ fi
 # ---------------------------------------------------------------- 6. Autostart
 say "Autostart einrichten"
 LA="$HOME/Library/LaunchAgents"; mkdir -p "$LA" "$HOME/Library/Logs"
-cat > "$LA/de.straubmueller.laufbanddaemon.plist" <<EOF
+cat > "$LA/de.straubmueller.saunter.daemon.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>de.straubmueller.laufbanddaemon</string>
+    <string>de.straubmueller.saunter.daemon</string>
     <key>ProgramArguments</key>
     <array>
         <string>$DEST/venv/bin/python</string>
-        <string>$DEST/laufband_daemon.py</string>
+        <string>$DEST/saunter_daemon.py</string>
     </array>
     <key>WorkingDirectory</key>
     <string>$DEST</string>
@@ -185,13 +184,13 @@ cat > "$LA/de.straubmueller.laufbanddaemon.plist" <<EOF
         <string>1</string>
     </dict>
     <key>StandardOutPath</key>
-    <string>$HOME/Library/Logs/laufband_daemon.log</string>
+    <string>$HOME/Library/Logs/saunter_daemon.log</string>
     <key>StandardErrorPath</key>
-    <string>$HOME/Library/Logs/laufband_daemon.log</string>
+    <string>$HOME/Library/Logs/saunter_daemon.log</string>
 </dict>
 </plist>
 EOF
-cat > "$LA/de.straubmueller.laufbandmenubar.plist" <<EOF
+cat > "$LA/de.straubmueller.saunter.app.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -199,33 +198,33 @@ cat > "$LA/de.straubmueller.laufbandmenubar.plist" <<EOF
 	<key>KeepAlive</key>
 	<false/>
 	<key>Label</key>
-	<string>de.straubmueller.laufbandmenubar</string>
+	<string>de.straubmueller.saunter.app</string>
 	<key>ProgramArguments</key>
 	<array>
-		<string>$HOME/Applications/Laufband.app/Contents/MacOS/Laufband</string>
+		<string>$HOME/Applications/Saunter.app/Contents/MacOS/Saunter</string>
 	</array>
 	<key>RunAtLoad</key>
 	<true/>
 	<key>StandardErrorPath</key>
-	<string>/tmp/laufband_menubar.log</string>
+	<string>/tmp/saunter_app.log</string>
 	<key>StandardOutPath</key>
-	<string>/tmp/laufband_menubar.log</string>
+	<string>/tmp/saunter_app.log</string>
 </dict>
 </plist>
 EOF
-for L in de.straubmueller.laufbanddaemon de.straubmueller.laufbandmenubar; do
+for L in de.straubmueller.saunter.daemon de.straubmueller.saunter.app; do
   launchctl bootout "gui/$UID_/$L" 2>/dev/null || true
   launchctl bootstrap "gui/$UID_" "$LA/$L.plist"
 done
 
 # ---------------------------------------------------------------- Terminal + Claude
 say "Terminal-Befehl und Claude einrichten"
-if ! grep -q 'alias laufband=' "$HOME/.zshrc" 2>/dev/null; then
-  echo "alias laufband=\"$DEST/laufband.sh\"" >> "$HOME/.zshrc"
+if ! grep -q 'alias saunter=' "$HOME/.zshrc" 2>/dev/null; then
+  echo "alias saunter=\"$DEST/saunter.sh\"" >> "$HOME/.zshrc"
 fi
 if command -v claude >/dev/null; then
-  claude mcp remove -s user laufband >/dev/null 2>&1 || true
-  claude mcp add -s user laufband -- "$DEST/venv/bin/python" "$DEST/laufband_mcp.py" && echo "Claude Code: MCP „laufband“ eingetragen"
+  claude mcp remove -s user saunter >/dev/null 2>&1 || true
+  claude mcp add -s user saunter -- "$DEST/venv/bin/python" "$DEST/saunter_mcp.py" && echo "Claude Code: MCP „saunter“ eingetragen"
 fi
 CD="$HOME/Library/Application Support/Claude"
 if [[ -d "$CD" ]]; then
@@ -233,24 +232,24 @@ if [[ -d "$CD" ]]; then
 import json, os, sys
 p, dest = sys.argv[1], sys.argv[2]
 c = json.load(open(p)) if os.path.exists(p) else {}
-c.setdefault("mcpServers", {})["laufband"] = {
-    "command": f"{dest}/venv/bin/python", "args": [f"{dest}/laufband_mcp.py"]}
+c.setdefault("mcpServers", {})["saunter"] = {
+    "command": f"{dest}/venv/bin/python", "args": [f"{dest}/saunter_mcp.py"]}
 json.dump(c, open(p, "w"), indent=2, ensure_ascii=False)
-print("Claude Desktop: MCP „laufband“ eingetragen (Claude Desktop neu starten)")
+print("Claude Desktop: MCP „saunter“ eingetragen (Claude Desktop neu starten)")
 EOF
 fi
 
 # ---------------------------------------------------------------- Fertig
 say "Fertig"
 sleep 5
-curl -s --max-time 3 http://127.0.0.1:8765/api/status | head -c 300 || echo "Daemon antwortet noch nicht – Log: tail -f ~/Library/Logs/laufband_daemon.log"
+curl -s --max-time 3 http://127.0.0.1:8765/api/status | head -c 300 || echo "Daemon antwortet noch nicht – Log: tail -f ~/Library/Logs/saunter_daemon.log"
 cat <<EOF
 
 
 Noch von Hand:
-  • Optional: eigene Kurzbefehle mit der Aktion „URL öffnen“ (z. B. laufband://toggle) anlegen – siehe README
-  • Neues Terminal-Fenster öffnen, dann: laufband status
-  • Bluetooth-Freigabe erlauben, falls macOS für Python/Laufband fragt
+  • Optional: eigene Kurzbefehle mit der Aktion „URL öffnen“ (z. B. saunter://toggle) anlegen – siehe README
+  • Neues Terminal-Fenster öffnen, dann: saunter status
+  • Bluetooth-Freigabe erlauben, falls macOS für Python/Saunter fragt
   • Optional: Apple Intelligence einschalten, Kalender im Analyse-Tab verbinden
   • Den alten Mac nicht wieder mit dem Band verbinden lassen (Daemon dort aus lassen)
 EOF

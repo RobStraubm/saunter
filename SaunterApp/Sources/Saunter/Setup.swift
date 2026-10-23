@@ -69,7 +69,7 @@ struct SetupView: View {
                 }
 
                 if !model.daemonReachable {
-                    Label("Der Laufband-Daemon läuft nicht. Ist install.sh durchgelaufen?", systemImage: "exclamationmark.triangle.fill")
+                    Label("Der Saunter-Daemon läuft nicht. Ist install.sh durchgelaufen?", systemImage: "exclamationmark.triangle.fill")
                         .foregroundStyle(Palette.critical)
                 }
 

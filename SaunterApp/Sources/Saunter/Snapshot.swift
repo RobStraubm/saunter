@@ -64,7 +64,7 @@ struct AppIconView: View {
     }
 }
 
-/// Entwickler-Werkzeug: `LaufbandMenuBar --render-dashboard|--render-panel <datei.png> [--dark] [--range 7|30|12w|all]`
+/// Entwickler-Werkzeug: `Saunter --render-dashboard|--render-panel <datei.png> [--dark] [--range 7|30|12w|all]`
 /// rendert die Uebersicht bzw. das Menueleisten-Panel offscreen als Bild und beendet sich.
 enum Snapshot {
     /// true, wenn gerendert wird (die App beendet sich danach selbst).

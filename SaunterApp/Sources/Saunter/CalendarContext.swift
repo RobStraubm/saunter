@@ -109,7 +109,7 @@ struct CalendarContextCard: View {
                 }
             case .denied:
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Kein Zugriff auf den Kalender. Du kannst ihn unter Datenschutz & Sicherheit → Kalender für „Laufband“ erlauben.")
+                    Text("Kein Zugriff auf den Kalender. Du kannst ihn unter Datenschutz & Sicherheit → Kalender für „Saunter“ erlauben.")
                         .font(.callout).foregroundStyle(Palette.ink2)
                         .fixedSize(horizontal: false, vertical: true)
                     Button("Einstellungen öffnen") {

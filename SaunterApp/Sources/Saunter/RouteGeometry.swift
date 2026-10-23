@@ -31,7 +31,7 @@ final class RouteGeometryStore: ObservableObject {
 
     init() {
         directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Laufband/Routen", isDirectory: true)
+            .appendingPathComponent("Saunter/Routen", isDirectory: true)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         for route in JourneyRoute.all {
             if let data = try? Data(contentsOf: file(route.id)),

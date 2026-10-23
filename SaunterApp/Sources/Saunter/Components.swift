@@ -54,7 +54,7 @@ struct OfflineNotice: View {
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Palette.critical)
-            Text("Der Laufband-Daemon ist nicht erreichbar – Daten sind evtl. nicht aktuell. Details: laufband log")
+            Text("Der Saunter-Daemon ist nicht erreichbar – Daten sind evtl. nicht aktuell. Details: saunter log")
                 .foregroundStyle(Palette.ink2)
         }
         .font(.callout)

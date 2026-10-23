@@ -1,11 +1,17 @@
-# Laufband
+# Saunter
+
+[![CI](https://github.com/RobStraubm/laufband/actions/workflows/ci.yml/badge.svg)](https://github.com/RobStraubm/laufband/actions/workflows/ci.yml)
+
+*Walk while you work.* Saunter turns a FitShow walking pad into a Mac companion: control, history, streaks and a virtual journey around Lake Constance.
 
 **English summary** · Deutsche Dokumentation unten
 
 - Control a FitShow-based walking pad (treadmill) from your Mac over Bluetooth LE — a replacement for the vendor app and remote.
+- First launch walks you through setup in the app: find the pad via Bluetooth, body data for step and calorie estimates, optional office network and Health export. No config file editing needed.
 - A local Python daemon holds the BLE connection, records sessions in SQLite and serves an HTTP/WebSocket API on 127.0.0.1.
 - An MCP server lets Claude read your walking stats and, only on explicit request, control the belt.
-- A SwiftUI menu bar app (macOS 26) shows live data, history, goals and a virtual journey; finished workouts can be exported to Apple Health.
+- A SwiftUI menu bar app (macOS 26) shows live data, history, a daily and a weekly streak (office days minus one cheat day) and a virtual journey; finished workouts can be exported to Apple Health.
+- Tested: the streak logic and the FitShow packet parsing run as unit tests on every push (GitHub Actions), and the app is built there too.
 - Built with Claude Code.
 - **Warning:** this software controls a real device with a moving belt. Use it at your own risk, keep the original remote within reach and never start the belt unattended.
 - Data stays local: sessions and config live next to the code (SQLite, `config.json`) and the API listens on 127.0.0.1 only. The only things that leave the Mac are optional Apple services: Maps routing for the virtual journey and an iMessage to yourself for the Health export.
@@ -14,7 +20,7 @@
 
 ---
 
-# Laufband per Bluetooth vom Computer steuern (FitShow-Protokoll)
+# Saunter: Laufband per Bluetooth vom Mac steuern (FitShow-Protokoll)
 
 Ersetzt die FitShow-App/Fernbedienung: Start, Stopp, Pause, Live-Tempo — per
 Bluetooth LE direkt vom Mac, mit Live-Daten, Auswertungen und automatischem
@@ -36,46 +42,48 @@ der nächste Start beginnt also nie mit einem hohen Tempo von neulich.
 ## Aufbau
 
 ```
- Laufband ◄─BLE─► laufband_daemon.py ◄─HTTP/WebSocket (127.0.0.1:8765)─┬─ Laufband.app (Menüleiste, Übersicht,
+ Laufband ◄─BLE─► saunter_daemon.py ◄─HTTP/WebSocket (127.0.0.1:8765)─┬─ Saunter.app (Menüleiste, Übersicht,
                   (hält die Verbindung,                                │   Rückblick, Widget, Tastenkürzel)
-                   fragt 2×/s den Status ab,                           ├─ laufband (Terminal)
-                   Sessions → laufband.db)                             ├─ laufband_mcp.py (Claude)
-                                                                       └─ laufband://-Links (Kurzbefehle,
+                   fragt 2×/s den Status ab,                           ├─ saunter (Terminal)
+                   Sessions → saunter.db)                             ├─ saunter_mcp.py (Claude)
+                                                                       └─ saunter://-Links (Kurzbefehle,
                                                                            Kontrollzentrum, Spotlight, Siri)
 ```
 
 | Datei | Zweck |
 |---|---|
-| `laufband_daemon.py` | Hintergrunddienst: dauerhafte BLE-Verbindung, Live-Telemetrie, Sessions in SQLite, HTTP-API, Health-Export |
-| `config.example.json` → `config.json` | Geräte-Adresse, Größe/Gewicht (Schritte, kcal), Standardtempo, Tagesziel, Auto-Ende nach Pause. `config.json` ist persönlich und nicht im Repo (`install.sh` legt sie aus der Vorlage an) |
-| `live_control.py` + `laufband.sh` | Terminal-Client (`laufband …`) |
-| `LaufbandMenuBar/` | SwiftUI-App (macOS 26, Liquid Glass): Menüleiste, Übersicht, Rückblick, Widget → `~/Applications/Laufband.app` |
-| `laufband_mcp.py` | MCP-Server: Claude liest Trainings/Statistiken und steuert auf Wunsch das Band |
+| `saunter_daemon.py` | Hintergrunddienst: dauerhafte BLE-Verbindung, Live-Telemetrie, Sessions in SQLite, HTTP-API, Health-Export |
+| `config.example.json` → `config.json` | Geräte-Adresse, Größe/Gewicht (Schritte, kcal), Standardtempo, Tagesziel, Auto-Ende nach Pause. `config.json` ist persönlich und nicht im Repo (`install.sh` legt sie aus der Vorlage an, die Einrichtung in der App füllt sie) |
+| `live_control.py` + `saunter.sh` | Terminal-Client (`saunter …`) |
+| `SaunterApp/` | SwiftUI-App (macOS 26, Liquid Glass): Menüleiste, Übersicht, Rückblick, Widget → `~/Applications/Saunter.app` |
+| `saunter_mcp.py` | MCP-Server: Claude liest Trainings/Statistiken und steuert auf Wunsch das Band |
 | `walk_session.py` | Gemeinsame Bausteine: FitShow-Pakete, Status-Parser, Schritt-Schätzung, Health-Export |
 | `probe_status.py` | Diagnose: fragt nur den Status ab (`--run`: 20 s bei 1 km/h); Adresse aus `config.json` |
-| `laufband.db` | Alle Trainings + Tempo-Verlauf je Sekunde (entsteht lokal beim ersten Start, nicht im Repo; eine alte `workouts.csv` wird einmalig übernommen) |
+| `saunter.db` | Alle Trainings + Tempo-Verlauf je Sekunde (entsteht lokal beim ersten Start, nicht im Repo; eine alte `workouts.csv` wird einmalig übernommen) |
 
 ## Installation, Sichern und Umzug auf einen neuen Mac
 
 **Neu installieren:** Laufband einschalten, Repo klonen und im Repo-Ordner
 `./install.sh` ausführen. Das Skript legt aus `config.example.json` eine eigene
 `config.json` an (falls noch keine existiert), kopiert das Projekt nach
-`~/laufband`, sucht das Band per Bluetooth (die BLE-Adresse ist pro Mac
+`~/saunter`, sucht das Band per Bluetooth (die BLE-Adresse ist pro Mac
 verschieden), legt die venv aus `requirements.txt` an, baut die App und richtet
-Autostart, `laufband`-Befehl und Claude-MCP ein. Danach in `config.json` Größe
-und Gewicht (Schritte, kcal) und optional `imessage_target` (Health-Export)
-anpassen.
+Autostart, `saunter`-Befehl und Claude-MCP ein. Beim ersten Start öffnet die App
+die **Einrichtung**: Laufband per Bluetooth suchen und auswählen, Größe und
+Gewicht (für Schritte und kcal), optional Büro-Netz und Health-Export. Später
+erreichbar im Panel unter „Tastenkürzel & Automatik → Einrichtung“, z. B. um das
+Gerät zu wechseln. `config.json` muss niemand von Hand bearbeiten.
 
-**Sichern / Umzug:** `./sichern.sh` kopiert alles (Code, `laufband.db`, Routen,
-Erfolge, App, LaunchAgents) nach Google Drive → „Meine Ablage/Laufband“ (Pfad im
+**Sichern / Umzug:** `./sichern.sh` kopiert alles (Code, `saunter.db`, Routen,
+Erfolge, App, LaunchAgents) nach Google Drive → „Meine Ablage/Saunter“ (Pfad im
 Skript anpassen, falls du etwas anderes nutzt). Auf dem neuen Mac: Daemon auf dem
 alten Mac beenden (siehe unten), Laufband einschalten, dann `install.sh` aus dem
 Sicherungsordner ausführen
-(`zsh ".../Meine Ablage/Laufband/treadmill-remote/install.sh"`).
+(`zsh ".../Meine Ablage/Saunter/saunter/install.sh"`).
 
 ## Setup
 
-Von Hand (ohne `install.sh`), im Projektordner (z. B. `~/laufband`):
+Von Hand (ohne `install.sh`), im Projektordner (z. B. `~/saunter`):
 
 ```bash
 cp config.example.json config.json   # dann Adresse, Größe, Gewicht eintragen
@@ -84,14 +92,14 @@ python3 -m venv venv
 ```
 
 `install.sh` richtet beide Teile als LaunchAgent ein; sie starten bei jedem Login automatisch:
-`~/Library/LaunchAgents/de.straubmueller.laufbanddaemon.plist` und
-`~/Library/LaunchAgents/de.straubmueller.laufbandmenubar.plist`.
+`~/Library/LaunchAgents/de.straubmueller.saunter.daemon.plist` und
+`~/Library/LaunchAgents/de.straubmueller.saunter.app.plist`.
 
 ```bash
 # nach Änderungen am Daemon
-launchctl kickstart -k gui/$(id -u)/de.straubmueller.laufbanddaemon
-# nach Änderungen an der App (baut ~/Applications/Laufband.app neu und startet sie)
-cd LaufbandMenuBar && ./build_app.sh --restart
+launchctl kickstart -k gui/$(id -u)/de.straubmueller.saunter.daemon
+# nach Änderungen an der App (baut ~/Applications/Saunter.app neu und startet sie)
+cd SaunterApp && ./build_app.sh --restart
 ```
 
 Die App braucht die Command Line Tools 26 (macOS-26-SDK: Liquid Glass, 3D-Charts,
@@ -100,7 +108,7 @@ macOS ggf. erneut nach der Kalender-Freigabe.
 
 **Wichtig:** Das Laufband erlaubt nur *eine* BLE-Verbindung. Solange der Daemon
 verbunden ist, kann sich die FitShow-App nicht verbinden (und umgekehrt).
-Zum Freigeben: `launchctl bootout gui/$(id -u)/de.straubmueller.laufbanddaemon`.
+Zum Freigeben: `launchctl bootout gui/$(id -u)/de.straubmueller.saunter.daemon`.
 
 ## Benutzung
 
@@ -134,16 +142,15 @@ im Panel unter „Tastenkürzel & Automatik".
 Wird der Mac gesperrt oder geht in den Ruhezustand, pausiert das Band
 (Einstellung im Panel, standardmäßig an). Beim Entsperren läuft es *nicht*
 automatisch weiter — das lässt sich im Panel einschalten, startet das Band dann
-aber ohne Rückfrage. App-Log: `/tmp/laufband_menubar.log`.
+aber ohne Rückfrage. App-Log: `/tmp/saunter_app.log`.
 
-### Übersicht (⌃⌥⌘ U, Button im Panel oder `laufband übersicht`)
+### Übersicht (⌃⌥⌘ U, Button im Panel oder `saunter übersicht`)
 
 Liquid-Glass-Kopfleiste mit Tabs, Zeitraum (7 Tage – Gesamt), **2D/3D-Umschalter**
 und **Rückblick**. Überall Tooltips beim Überfahren.
 
-- **Übersicht:** Heute / Diese Woche / Insgesamt + **Wochenziel** (Standard: 1×
-  Bodensee-Runde = 260 km, über „Ziel" änderbar; zeigt nötige km pro Tag und wie
-  weit du diese Woche um den See gekommen wärst), Distanz mit Vergleich zum
+- **Übersicht:** Heute / Diese Woche / Insgesamt, wie weit du insgesamt um den
+  Bodensee gekommen wärst, **Wochen-Streak** (Lauftage dieser Woche), Distanz mit Vergleich zum
   Vorzeitraum, Tagesziel (Schritte), Kennzahlen, **Einschätzung** (Regeln + mit
   Apple Intelligence eine KI-Zusammenfassung direkt auf dem Mac), Reise-Teaser,
   Distanz pro Tag/Woche, Tempo-Verlauf (live), Bestwerte.
@@ -160,41 +167,49 @@ und **Rückblick**. Überall Tooltips beim Überfahren.
 Abschlusskarte als Bild (1080 × 1920) nach `~/Downloads` + Teilen.
 
 **Schreibtisch-Widget:** Glaskarte auf dem Schreibtisch mit Kartenvorschau
-(wo du auf deiner Reise gerade wärst), Wochenziel, Heute/Woche/Gesamt, Streak
+(wo du auf deiner Reise gerade wärst), Wochen-Streak, Heute/Woche/Gesamt, Streak
 und Live-Tempo (im Panel ein-/ausschaltbar, verschiebbar, Klick öffnet die Übersicht).
 
 ### Reise auf echten Wegen
 
 Die Routen (Standard: **Bodensee-Runde ab Konstanz**) werden einmalig mit Apple
-Karten als **Fußweg** berechnet (`~/Library/Application Support/Laufband/Routen/`)
+Karten als **Fußweg** berechnet (`~/Library/Application Support/Saunter/Routen/`)
 – kein Laufen über den See. Die Bodensee-Runde misst so ~204 km. Abschnitte ohne
 brauchbaren Fußweg (riesiger Umweg, z. B. Alpenpässe) bleiben gerade; das Panel
 zeigt, wie viele Abschnitte echte Wege sind. Zum Neuberechnen die JSON-Datei löschen.
 
-### Wochenziel
+### Wochen-Streak (mit Cheat-Day)
 
-Standard „1× Bodensee-Runde" (echte Länge), im Übersichts-Tab über „Ziel"
-änderbar (½, ¼, 50 km, 25 km, eigener Wert). Gespeichert in `config.json`
-(`weekly_goal_km`, `weekly_goal_label`). Angezeigt in Übersicht, Panel, Widget,
-Terminal und für Claude – inklusive „nötig pro Tag" und wie weit du diese Woche
-um den See gekommen wärst.
+Pro Woche so viele **Lauftage** (je mind. 5 Minuten) wie du **Bürotage** hattest,
+minus einen **Cheat-Day** (`week_cheat_days`). Normale Woche: 4 von 5, Woche mit
+drei Bürotagen: 2. Lauftage am Wochenende zählen mit. Wochen ohne Ziel (Urlaub)
+sind neutral, die laufende Woche bricht die Serie nie. Die Flamme in der
+Übersicht zählt geschaffte Wochen in Folge; Panel, Widget und Claude zeigen den
+Stand der Woche. Kilometer werden nicht mehr als Wochenziel gezählt, sondern als
+Gesamtstrecke um den Bodensee.
 
 ### Wanderstreak (wie bei Duolingo)
 
 Jeden **Werktag mindestens 5 Minuten** laufen (`streak_min_minutes`). Wochenenden
 zählen als Bonus, brechen den Streak aber nicht. Hast du an einem Werktag nicht
-gelaufen, **fragt die App, ob du im Büro warst**: „Nicht im Büro" → der Tag zählt
-nicht gegen den Streak, „War im Büro" → der Streak reißt. Bis zur Antwort bleibt
-der Streak stehen. Fragen kommen im Panel, in der Übersicht und als Glas-Banner
-oben rechts mit Antwort-Knöpfen; um 17 Uhr erinnert ein Banner, falls der Tag noch
-offen ist („Jetzt starten" / „Heute nicht im Büro"). Echte macOS-Mitteilungen
-erlaubt das System nur signierten Apps, daher die Banner. In der Wochenleiste jeden
-Tag per Rechtsklick nachträglich markieren. Terminal: `laufband buero nein [JJJJ-MM-TT]`.
+gelaufen, zählt der Tag nur, wenn du im Büro warst. Das klärt die App so:
+
+- **Büro-Netz (empfohlen):** Einmal im Büro „Aktuelles Netz ist das Büro“ wählen
+  (Einrichtung oder Panel). Die App erkennt das Büro dann am Router (MAC-Adresse,
+  ohne Ortungsfreigabe) und fragt nie nach. Werktage ohne Büro-Netz zählen als
+  „nicht im Büro“.
+- **Ohne Büro-Netz** fragt die App, gesammelt für alle offenen Tage und höchstens
+  einmal am Tag, mit „Alle nicht im Büro“.
+- **Nachtragen:** Knopf „Bürotage“ im Panel und in der Streak-Karte zeigt die
+  letzten vier Wochen zum Korrigieren. Terminal: `saunter buero nein [JJJJ-MM-TT]`.
+
+Um 17 Uhr erinnert ein Glas-Banner, falls der Tag noch offen ist. Echte
+macOS-Mitteilungen erlaubt das System nur signierten Apps, daher die Banner.
 
 ### Erfolge
 
 ~40 Erfolge in „Erfolge" (Kilometer bis 1.000 km, Schritte bis zur Million,
-Tagesleistungen, lange/schnelle Trainings, Streak-Stufen, Wochenziel,
+Tagesleistungen, lange/schnelle Trainings, Streak-Stufen, geschaffte Wochen,
 Frühaufsteher/Nachteule, Bodensee-Etappen von Kreuzlingen bis „Einmal rum!").
 Beim Erreichen – auch mitten im Training – gibt es Konfetti, eine Glas-Karte
 und Applaus (synthetisch erzeugt; im Panel abschaltbar). „Feier testen" im Tab
@@ -204,37 +219,37 @@ zeigt, wie es aussieht.
 
 Die signierten Kurzbefehle der Originalinstallation liegen nicht in diesem Repo.
 Lege in der Kurzbefehle-App eigene an (Aktion „URL öffnen“ mit einem der
-`laufband://`-Links unten, Name z. B. „Laufband schneller“). Danach:
+`saunter://`-Links unten, Name z. B. „Laufband schneller“). Danach:
 Kontrollzentrum → „Steuerelemente bearbeiten" → Kurzbefehle, oder in Spotlight
 „Laufband …" tippen, oder „Hey Siri, Laufband schneller". Die
-`laufband://`-Links lassen sich auch direkt nutzen (z. B. in Raycast):
+`saunter://`-Links lassen sich auch direkt nutzen (z. B. in Raycast):
 
 ```
-laufband://toggle  start?tempo=3,5  pause  weiter  beenden
-laufband://schneller  langsamer  tempo?wert=4,5
-laufband://uebersicht  rueckblick  reise
+saunter://toggle  start?tempo=3,5  pause  weiter  beenden
+saunter://schneller  langsamer  tempo?wert=4,5
+saunter://uebersicht  rueckblick  reise
 ```
 
 ### Claude als Laufband-Assistent (MCP)
 
-In Claude Code (und nach Neustart in Claude Desktop) ist der Server `laufband`
-eingetragen. Beispiele: „Wie war meine Woche auf dem Laufband?", „Schaffe ich
-mein Wochenziel noch?", „Ich war heute nicht im Büro", „Stell das Band auf
+In Claude Code (und nach Neustart in Claude Desktop) ist der Server `saunter`
+eingetragen. Beispiele: „Wie war meine Woche auf dem Laufband?", „Wie steht
+mein Wochen-Streak?", „Ich war heute nicht im Büro", „Stell das Band auf
 4 km/h". Steuerbefehle nur auf deinen ausdrücklichen Wunsch; Claude Code fragt
 vor jedem Aufruf nach.
 
 ### Terminal
 
 ```bash
-laufband start 3.0        # Start (ohne Zahl: aktuelles Zieltempo)
-laufband faster | slower  # ±0,5 km/h
-laufband setspeed 4.5
-laufband pause | resume   # Pause ohne Health-Eintrag
-laufband stop             # beendet das Training + Health-Eintrag
-laufband status --watch   # Live-Werte
-laufband sessions 10      # letzte Trainings
-laufband log              # Daemon-Log
-laufband übersicht        # Übersichts-Fenster öffnen
+saunter start 3.0        # Start (ohne Zahl: aktuelles Zieltempo)
+saunter faster | slower  # ±0,5 km/h
+saunter setspeed 4.5
+saunter pause | resume   # Pause ohne Health-Eintrag
+saunter stop             # beendet das Training + Health-Eintrag
+saunter status --watch   # Live-Werte
+saunter sessions 10      # letzte Trainings
+saunter log              # Daemon-Log
+saunter übersicht        # Übersichts-Fenster öffnen
 ```
 
 ### HTTP-API (für Kurzbefehle, Raycast, Stream Deck …)
@@ -264,13 +279,13 @@ Browser das Band starten kann.
 
 Beim Beenden: Eintrag in `workouts.csv`, Erinnerung in der iCloud-Liste
 **„Laufband"** (mit `shortcuts://`-Link als Fallback) und **iMessage an dich
-selbst** (`LAUFBAND: {...json...}`), die per Kurzbefehle-Automation auf dem
+selbst** (`SAUNTER: {...json...}`), die per Kurzbefehle-Automation auf dem
 iPhone automatisch einen Eintrag in Health → Training anlegt.
 
 ### Einmalige Einrichtung auf dem iPhone
 
-**1. Kurzbefehl `LaufbandWorkout`:**
-- Kurzbefehle-App → „+" → Name exakt `LaufbandWorkout`
+**1. Kurzbefehl `SaunterWorkout`:**
+- Kurzbefehle-App → „+" → Name exakt `SaunterWorkout`
 - Aktion „Wörterbuch aus Eingabe abrufen" (Eingabe = Kurzbefehl-Eingabe)
 - Aktion „Training aufzeichnen" — Felder als Variable aus dem Wörterbuch:
   Startdatum ← `date`, Dauer ← `duration_s` (Sekunden),
@@ -281,11 +296,24 @@ iPhone automatisch einen Eintrag in Health → Training anlegt.
 - „Wird empfangen von": deine eigene Nummer (dieselbe wie `imessage_target` in `config.json`)
 - Filter „Nachricht enthält" → `LAUFBAND:`
 - „Vor Ausführung fragen" deaktivieren
-- Aktionen: „Text ersetzen" (`LAUFBAND: ` → leer) → „Kurzbefehl ausführen" →
-  `LaufbandWorkout` mit dem Ergebnis als Eingabe
+- Aktionen: „Text ersetzen" (`SAUNTER: ` → leer) → „Kurzbefehl ausführen" →
+  `SaunterWorkout` mit dem Ergebnis als Eingabe
 
 Die Ziel-Nummer steht lokal in `config.json` als `imessage_target`, das Präfix
 in `walk_session.py` als `TRIGGER_PREFIX`.
+
+## Tests
+
+Die Streak-Regeln und das Lesen und Bauen der FitShow-Pakete sind ohne Gerät
+testbar:
+
+```bash
+./venv/bin/pip install pytest
+./venv/bin/python -m pytest
+```
+
+GitHub Actions führt die Tests bei jedem Push aus und baut die App
+(`.github/workflows/ci.yml`).
 
 ## Protokoll-Notizen
 

@@ -1,11 +1,11 @@
 #!/bin/zsh
-# Baut die Menueleisten-App und legt sie als App-Bundle nach ~/Applications/Laufband.app.
+# Baut die Menueleisten-App und legt sie als App-Bundle nach ~/Applications/Saunter.app.
 #   ./build_app.sh            bauen + Bundle aktualisieren
 #   ./build_app.sh --restart  zusaetzlich die laufende App neu starten
 set -euo pipefail
 cd "$(dirname "$0")"
 
-APP="$HOME/Applications/Laufband.app"
+APP="$HOME/Applications/Saunter.app"
 
 # Die Command Line Tools liefern ab dem macOS-27-SDK das SwiftUI-Makro-Plugin (@State) nicht mit.
 # Ohne Xcode deshalb gegen ein installiertes macOS-26-SDK bauen (SDKROOT von aussen hat Vorrang).
@@ -19,7 +19,7 @@ fi
 swift build -c release
 
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp .build/release/LaufbandMenuBar "$APP/Contents/MacOS/Laufband"
+cp .build/release/Saunter "$APP/Contents/MacOS/Saunter"
 cp Bundle/Info.plist "$APP/Contents/Info.plist"
 if [[ -f Bundle/AppIcon.icns ]]; then
   cp Bundle/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
@@ -32,7 +32,7 @@ echo "Bundle aktualisiert: $APP"
 if [[ "${1:-}" == "--restart" ]]; then
   # Laufende Instanz beenden, egal ob per launchd oder per Doppelklick gestartet; kickstart allein
   # erwischt eine per "open" gestartete App nicht und startet dann eine zweite.
-  BIN="$APP/Contents/MacOS/Laufband"
+  BIN="$APP/Contents/MacOS/Saunter"
   if pgrep -f "$BIN" >/dev/null; then
     osascript -e "tell application id \"$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Contents/Info.plist")\" to quit" || true
     for _ in {1..20}; do pgrep -f "$BIN" >/dev/null || break; sleep 0.25; done

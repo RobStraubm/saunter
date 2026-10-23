@@ -2,10 +2,10 @@
 import PackageDescription
 
 let package = Package(
-    name: "LaufbandMenuBar",
+    name: "Saunter",
     platforms: [.macOS(.v26)],
     targets: [
-        .executableTarget(name: "LaufbandMenuBar", path: "Sources/LaufbandMenuBar")
+        .executableTarget(name: "Saunter", path: "Sources/Saunter")
     ],
     swiftLanguageModes: [.v5]
 )

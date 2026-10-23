@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Kommandozeilen-Client fuer den Laufband-Daemon (laufband_daemon.py).
+Kommandozeilen-Client fuer den Saunter-Daemon (saunter_daemon.py).
 
 Benutzung:
     python3 live_control.py start [TEMPO]
@@ -46,7 +46,7 @@ def call(method: str, path: str, payload: dict | None = None):
     except urllib.error.HTTPError as e:
         return json.load(e)
     except urllib.error.URLError:
-        sys.exit("Daemon nicht erreichbar. Läuft er? -> laufband log")
+        sys.exit("Daemon nicht erreichbar. Läuft er? -> saunter log")
 
 
 def fmt_duration(seconds: int) -> str:
@@ -95,7 +95,7 @@ def fmt_status(st: dict) -> str:
         days = "Tag" if streak["current"] == 1 else "Tage"
         lines.append(f"  Wanderstreak {streak['current']} {days} ({today}, Rekord {streak['best']})")
         for d in streak["pending"]:
-            lines.append(f"  ? Warst du am {d} im Büro?  ->  laufband buero nein {d}  |  laufband buero ja {d}")
+            lines.append(f"  ? Warst du am {d} im Büro?  ->  saunter buero nein {d}  |  saunter buero ja {d}")
     if st.get("last_error"):
         lines.append(f"  ! {st['last_error']}")
     return "\n".join(lines)

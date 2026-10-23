@@ -175,7 +175,7 @@ struct DesktopWidgetView: View {
                     Text("\(Fmt.num(s.speed, 1)) km/h").font(.headline).monospacedDigit()
                         .contentTransition(.numericText(value: s.speed))
                 } else {
-                    Label(status?.phase == "paused" ? "Pausiert" : "Laufband", systemImage: "figure.walk").font(.headline)
+                    Label(status?.phase == "paused" ? "Pausiert" : "Saunter", systemImage: "figure.walk").font(.headline)
                     Spacer()
                     if let streak = status?.streak {
                         StreakFlame(streak: streak, size: 17)

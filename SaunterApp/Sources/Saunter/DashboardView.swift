@@ -132,7 +132,7 @@ struct DashboardView: View {
     private var header: some View {
         GlassEffectContainer(spacing: 10) {
             HStack(spacing: 12) {
-                Text("Laufband")
+                Text("Saunter")
                     .font(.system(size: 17, weight: .bold))
                     .foregroundStyle(Palette.ink)
                     .padding(.horizontal, 14)

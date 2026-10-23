@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Laufband-Daemon: haelt die Bluetooth-Verbindung dauerhaft offen, fragt jede
+Saunter-Daemon: haelt die Bluetooth-Verbindung dauerhaft offen, fragt jede
 halbe Sekunde den Status ab (SYS_STATUS), zeichnet Sessions in SQLite auf und
 bietet eine HTTP/WebSocket-API auf 127.0.0.1:8765 fuer CLI, Menueleiste & Co.
 
@@ -48,7 +48,7 @@ from walk_session import (
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
-DB_PATH = os.path.join(BASE_DIR, "laufband.db")
+DB_PATH = os.path.join(BASE_DIR, "saunter.db")
 
 POLL_INTERVAL_S = 0.5
 STALE_AFTER_S = 10
@@ -61,7 +61,7 @@ STATUS_NAMES = {
     ST_STOP: "stop", ST_ERROR: "error", ST_SAFETY: "safety", ST_STUDY: "study", ST_PAUSED: "paused",
 }
 
-log = logging.getLogger("laufband")
+log = logging.getLogger("saunter")
 
 
 def load_config() -> dict:

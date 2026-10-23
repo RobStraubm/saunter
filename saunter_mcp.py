@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-MCP-Server "laufband": gibt Claude Zugriff auf Live-Status, Trainings und
+MCP-Server "saunter": gibt Claude Zugriff auf Live-Status, Trainings und
 Auswertungen des Laufbands und erlaubt das Steuern ueber den Daemon
-(laufband_daemon.py, http://127.0.0.1:8765). Start (stdio):
+(saunter_daemon.py, http://127.0.0.1:8765). Start (stdio):
 
-    venv/bin/python laufband_mcp.py
+    venv/bin/python saunter_mcp.py
 """
 import json
 import os
@@ -22,13 +22,13 @@ with open(os.path.join(BASE_DIR, "config.json")) as f:
 API = f"http://{CONFIG['host']}:{CONFIG['port']}/api"
 
 server = MCPServer(
-    name="laufband",
-    title="Laufband",
+    name="saunter",
+    title="Saunter",
     instructions=(
         "Zugriff auf das Walking-Pad des Nutzers (FitShow, 1–8 km/h) ueber einen lokalen Daemon. "
         "Fuer Fragen zu Trainings, Fortschritt und Gewohnheiten die Lese-Werkzeuge nutzen und auf Deutsch, "
         "knapp und konkret antworten (km mit Komma, z. B. 2,4 km). "
-        "laufband_steuern bewegt ein echtes Geraet: nur aufrufen, wenn der Nutzer es ausdruecklich verlangt."
+        "saunter_steuern bewegt ein echtes Geraet: nur aufrufen, wenn der Nutzer es ausdruecklich verlangt."
     ),
 )
 
@@ -134,7 +134,7 @@ def _streaks(sessions: list[dict]) -> dict:
 
 
 @server.tool(annotations=READ_ONLY)
-async def laufband_status() -> dict:
+async def saunter_status() -> dict:
     """Aktueller Zustand: verbunden?, Phase (idle/countdown/running/paused/offline), Ist- und Zieltempo,
     laufendes Training (Zeit, km, kcal, Schritte) sowie die Summe von heute inkl. Tagesziel."""
     status = await _get("/status")
@@ -183,7 +183,7 @@ async def laufband_status() -> dict:
 
 
 @server.tool(annotations=CONTROL)
-async def laufband_buero_tag(im_buero: bool, datum: str | None = None) -> dict:
+async def saunter_buero_tag(im_buero: bool, datum: str | None = None) -> dict:
     """Beantwortet die Streak-Frage fuer einen Werktag (Standard: heute): im_buero=False markiert den Tag
     als 'nicht im Buero' (zaehlt nicht gegen den Wanderstreak), True bestaetigt die Anwesenheit.
     datum im Format JJJJ-MM-TT. Nur auf Wunsch des Nutzers."""
@@ -197,7 +197,7 @@ async def laufband_buero_tag(im_buero: bool, datum: str | None = None) -> dict:
 
 
 @server.tool(annotations=READ_ONLY)
-async def laufband_trainings(tage: int = 30, anzahl: int = 50) -> dict:
+async def saunter_trainings(tage: int = 30, anzahl: int = 50) -> dict:
     """Einzelne Trainings der letzten `tage` Tage (neueste zuerst, hoechstens `anzahl`): Start, Dauer,
     Distanz, Schnitt-/Maximaltempo, aktive kcal, Schritte, ob ein Tempo-Verlauf existiert."""
     since = datetime.now() - timedelta(days=tage)
@@ -207,7 +207,7 @@ async def laufband_trainings(tage: int = 30, anzahl: int = 50) -> dict:
 
 
 @server.tool(annotations=READ_ONLY)
-async def laufband_statistik(
+async def saunter_statistik(
     tage: int = 30,
     gruppierung: Literal["tag", "woche", "monat"] = "woche",
 ) -> dict:
@@ -263,7 +263,7 @@ async def laufband_statistik(
 
 
 @server.tool(annotations=READ_ONLY)
-async def laufband_tempo_verlauf(training_id: int | None = None) -> dict:
+async def saunter_tempo_verlauf(training_id: int | None = None) -> dict:
     """Tempo-Verlauf eines Trainings (Standard: laufendes, sonst letztes mit Sekundenwerten) als Liste der
     Tempowechsel [Minute, km/h] plus Zeit je Tempobereich."""
     if training_id is None:
@@ -303,7 +303,7 @@ async def laufband_tempo_verlauf(training_id: int | None = None) -> dict:
 
 
 @server.tool(annotations=CONTROL)
-async def laufband_steuern(
+async def saunter_steuern(
     aktion: Literal["start", "pause", "weiter", "stopp", "tempo", "schneller", "langsamer"],
     tempo_kmh: float | None = None,
 ) -> dict:

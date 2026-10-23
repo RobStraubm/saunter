@@ -173,7 +173,7 @@ struct StoryWindow: View {
         guard let image = renderer.nsImage,
               let tiff = image.tiffRepresentation,
               let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) else { return nil }
-        let name = "Laufband-Rückblick-\(summary.headline.replacingOccurrences(of: " ", with: "-")).png"
+        let name = "Saunter-Rückblick-\(summary.headline.replacingOccurrences(of: " ", with: "-")).png"
         let url = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0].appendingPathComponent(name)
         do {
             try png.write(to: url)
@@ -406,7 +406,7 @@ struct StorySlide: View {
             }
             HStack(spacing: 6) {
                 Image(systemName: "figure.walk")
-                Text("Laufband").fontWeight(.semibold)
+                Text("Saunter").fontWeight(.semibold)
             }
             .opacity(0.75)
         }

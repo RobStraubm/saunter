@@ -3,13 +3,13 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleIdentifier</key>
-    <string>de.straubmueller.laufband</string>
+    <string>de.straubmueller.saunter</string>
     <key>CFBundleName</key>
-    <string>Laufband</string>
+    <string>Saunter</string>
     <key>CFBundleDisplayName</key>
-    <string>Laufband</string>
+    <string>Saunter</string>
     <key>CFBundleExecutable</key>
-    <string>Laufband</string>
+    <string>Saunter</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
@@ -27,15 +27,15 @@
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSCalendarsFullAccessUsageDescription</key>
-    <string>Laufband vergleicht deine Gehzeiten mit deinen Terminen – die Auswertung bleibt lokal auf diesem Mac.</string>
+    <string>Saunter vergleicht deine Gehzeiten mit deinen Terminen – die Auswertung bleibt lokal auf diesem Mac.</string>
     <key>CFBundleURLTypes</key>
     <array>
         <dict>
             <key>CFBundleURLName</key>
-            <string>de.straubmueller.laufband</string>
+            <string>de.straubmueller.saunter</string>
             <key>CFBundleURLSchemes</key>
             <array>
-                <string>laufband</string>
+                <string>saunter</string>
             </array>
         </dict>
     </array>
