@@ -46,7 +46,6 @@ def _imessage_target() -> str:
         return ""
 
 
-IMESSAGE_TARGET = _imessage_target()
 TRIGGER_PREFIX = "LAUFBAND: "
 
 
@@ -62,6 +61,28 @@ def short_uuid(uuid_str: str):
         return int(uuid_str.split("-")[0], 16)
     except ValueError:
         return None
+
+
+FITSHOW_SERVICES = ("fff0", "ffe0", "ae00")
+FITSHOW_NAME_HINTS = ("FS-", "FITSHOW", "WALK", "PAD", "TREAD", "KS-", "RUN")
+
+
+async def scan_treadmills(timeout: float = 8.0) -> list[dict]:
+    """Bluetooth-Geraete in der Naehe, wahrscheinliche Laufbaender zuerst."""
+    from bleak import BleakScanner
+    found = await BleakScanner.discover(timeout=timeout, return_adv=True)
+    devices = []
+    for addr, (dev, adv) in found.items():
+        name = dev.name or adv.local_name or ""
+        uuids = [u.lower()[4:8] for u in adv.service_uuids]
+        score = 2 if any(u in FITSHOW_SERVICES for u in uuids) else 0
+        if any(k in name.upper() for k in FITSHOW_NAME_HINTS):
+            score += 1
+        if name or score:
+            devices.append({"address": addr, "name": name or "(ohne Namen)", "rssi": adv.rssi,
+                            "likely": score >= 2, "score": score})
+    devices.sort(key=lambda d: (-d["score"], -d["rssi"]))
+    return devices[:20]
 
 
 def find_characteristics(client: BleakClient):
@@ -116,7 +137,8 @@ def send_trigger_message(summary: dict):
     """Schickt eine iMessage an das eigene iPhone. Eine Kurzbefehle-Automation
     mit 'Nachricht empfangen'-Ausloeser fischt das Praefix raus und loggt den
     Workout automatisch in Apple Health, ganz ohne Tippen."""
-    if not IMESSAGE_TARGET:
+    target = _imessage_target()
+    if not target:
         return
     payload = json.dumps(summary, ensure_ascii=False)
     message_text = f"{TRIGGER_PREFIX}{payload}"
@@ -127,7 +149,7 @@ def send_trigger_message(summary: dict):
     script = f'''
 tell application "Messages"
     set targetService to 1st service whose service type = iMessage
-    set targetBuddy to buddy "{esc(IMESSAGE_TARGET)}" of targetService
+    set targetBuddy to buddy "{esc(target)}" of targetService
     send "{esc(message_text)}" to targetBuddy
 end tell
 '''

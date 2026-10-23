@@ -8,8 +8,6 @@
   "min_session_s": 60,
   "auto_finish_pause_s": 600,
   "daily_step_goal": 10000,
-  "weekly_goal_km": 204.0,
-  "weekly_goal_label": "1× Bodensee-Runde",
   "speed_zones_kmh": [
     3.0,
     4.5,
@@ -20,5 +18,7 @@
   "streak_start": "2026-01-01",
   "streak_min_minutes": 5,
   "streak_weekdays_only": true,
-  "imessage_target": ""
+  "imessage_target": "",
+  "device_name": "",
+  "week_cheat_days": 1
 }

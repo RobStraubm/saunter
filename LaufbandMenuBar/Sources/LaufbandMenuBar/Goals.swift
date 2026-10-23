@@ -1,24 +1,6 @@
 import SwiftUI
 
-struct GoalPreset: Identifiable {
-    let label: String
-    let km: Double
-    var id: String { label }
-
-    /// Bodensee-Varianten nutzen die echte Fussweg-Laenge, sobald sie berechnet ist.
-    @MainActor static var all: [GoalPreset] {
-        let lap = (RouteGeometryStore.shared.geometries["bodensee"]?.totalKm ?? 260).rounded()
-        return [
-            GoalPreset(label: "1× Bodensee-Runde", km: lap),
-            GoalPreset(label: "½ Bodensee-Runde", km: (lap / 2).rounded()),
-            GoalPreset(label: "¼ Bodensee-Runde", km: (lap / 4).rounded()),
-            GoalPreset(label: "50 km", km: 50),
-            GoalPreset(label: "25 km", km: 25),
-        ]
-    }
-}
-
-/// Heute / Woche / Insgesamt plus Wochenziel – bevorzugt aus dem Daemon, sonst aus den Trainings berechnet.
+/// Heute / Woche / Insgesamt plus Wochen-Streak – bevorzugt aus dem Daemon, sonst aus den Trainings berechnet.
 struct WeekProgress {
     let todayKm: Double
     let weekKm: Double
@@ -26,16 +8,10 @@ struct WeekProgress {
     let todaySeconds: Double
     let weekSeconds: Double
     let totalSessions: Int
-    let goalKm: Double
-    let goalLabel: String
-    let daysLeft: Int
+    let weekStreak: WeekStreak?
+    /// Tage dieser Woche mit Zustand (done, excused, ...) fuer die Punkte unter den Balken.
+    let streakWeek: [StreakDay]
     let dayKm: [(date: Date, km: Double)]
-
-    var fraction: Double { goalKm > 0 ? weekKm / goalKm : 0 }
-    var remainingKm: Double { max(0, goalKm - weekKm) }
-    var perDayNeeded: Double { remainingKm / Double(max(daysLeft, 1)) }
-    var reached: Bool { weekKm >= goalKm }
-    var isBodensee: Bool { goalLabel.localizedCaseInsensitiveContains("bodensee") }
 
     init(status: Status?, sessions: [WorkoutSession], now: Date = .now) {
         let cal = deCalendar
@@ -55,11 +31,9 @@ struct WeekProgress {
             weekSeconds = inWeek.reduce(0) { $0 + $1.active_s }
             totalSessions = sessions.count
         }
-        goalKm = status?.weekly_goal?.km ?? 260
-        goalLabel = status?.weekly_goal?.label ?? "1× Bodensee-Runde"
+        weekStreak = status?.streak?.week_streak
+        streakWeek = status?.streak?.week ?? []
 
-        let weekday = (cal.component(.weekday, from: now) + 5) % 7   // Mo = 0
-        daysLeft = 7 - weekday
         dayKm = (0..<7).map { offset in
             let day = cal.date(byAdding: .day, value: offset, to: weekStart)!
             return (day, inWeek.filter { cal.isDate($0.start, inSameDayAs: day) }.reduce(0) { $0 + $1.distance_km })
@@ -71,11 +45,10 @@ struct WeekProgress {
 
 struct WeekGoalCard: View {
     let progress: WeekProgress
-    let setGoal: (Double, String) -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: 28) {
-            // Links: die drei Distanzen
+            // Links: die drei Distanzen und die Bodensee-Runde als Gesamtstrecke
             VStack(alignment: .leading, spacing: 16) {
                 CardTitle(title: "Wie weit du gekommen bist")
                 HStack(alignment: .top, spacing: 30) {
@@ -83,70 +56,95 @@ struct WeekGoalCard: View {
                     distance("Diese Woche", progress.weekKm, Fmt.minutes(progress.weekSeconds))
                     distance("Insgesamt", progress.totalKm, "\(progress.totalSessions) Trainings")
                 }
+                Label(bodenseeLine, systemImage: "water.waves")
+                    .font(.caption).foregroundStyle(Palette.ink2)
             }
             .fixedSize()
 
             Divider()
 
-            // Rechts: Wochenziel
+            // Rechts: Wochen-Streak
             VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .firstTextBaseline) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Wochenziel").font(.headline).foregroundStyle(Palette.ink)
-                        Text("\(progress.goalLabel) · \(Fmt.num(progress.goalKm, progress.goalKm < 10 ? 1 : 0)) km bis Sonntag")
-                            .font(.subheadline).foregroundStyle(Palette.ink2)
-                    }
-                    Spacer()
-                    GoalMenu(current: progress.goalKm, setGoal: setGoal)
-                }
-
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text("\(Fmt.num(progress.fraction * 100, progress.fraction < 0.1 ? 1 : 0)) %")
-                        .font(.system(size: 34, weight: .semibold))
-                        .foregroundStyle(Palette.ink)
-                        .contentTransition(.numericText())
-                    Text("\(Fmt.num(progress.weekKm, 1)) von \(Fmt.num(progress.goalKm, 0)) km geschafft")
-                        .foregroundStyle(Palette.ink2)
-                }
-                Meter(progress: min(progress.fraction, 1))
-
-                HStack(alignment: .bottom, spacing: 16) {
-                    dayBars
-                    Spacer(minLength: 12)
-                    VStack(alignment: .trailing, spacing: 4) {
-                        if progress.reached {
-                            HStack(spacing: 5) {
-                                Image(systemName: "checkmark.seal.fill").foregroundStyle(Palette.statusGood)
-                                Text("Wochenziel erreicht").foregroundStyle(Palette.ink)
-                            }
-                            .font(.callout.weight(.semibold))
-                        } else {
-                            Text("Noch \(Fmt.num(progress.remainingKm, 1)) km")
-                                .font(.callout.weight(.semibold)).foregroundStyle(Palette.ink)
-                            Text("≈ \(Fmt.num(progress.perDayNeeded, 1)) km pro Tag · \(Fmt.minutes(progress.perDayNeeded / 4 * 3600)) bei 4 km/h")
-                                .font(.caption).foregroundStyle(Palette.ink2)
-                        }
-                        if progress.isBodensee {
-                            Text(bodenseeLine)
-                                .font(.caption).foregroundStyle(Palette.muted)
-                        }
-                    }
+                if let week = progress.weekStreak {
+                    weekStreak(week)
+                } else {
+                    Text("Wochen-Streak").font(.headline).foregroundStyle(Palette.ink)
+                    Text("Wird nach dem nächsten Neustart des Daemons angezeigt.")
+                        .font(.caption).foregroundStyle(Palette.ink2)
                 }
             }
         }
         .card()
     }
 
-    /// Wo du diese Woche auf der Bodensee-Runde waerst (Start jede Woche in Konstanz).
+    @ViewBuilder
+    private func weekStreak(_ week: WeekStreak) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Wochen-Streak").font(.headline).foregroundStyle(Palette.ink)
+                Text(ruleLine(week)).font(.subheadline).foregroundStyle(Palette.ink2)
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 0) {
+                Text("\(week.current)").font(.title3.weight(.semibold)).monospacedDigit().foregroundStyle(Palette.ink)
+                Text(week.current == 1 ? "Woche in Folge" : "Wochen in Folge").font(.caption).foregroundStyle(Palette.ink2)
+            }
+            .help("Rekord: \(week.best) \(week.best == 1 ? "Woche" : "Wochen")")
+        }
+
+        if week.state == "free" {
+            Text("Diese Woche ohne Ziel").font(.system(size: 28, weight: .semibold)).foregroundStyle(Palette.ink)
+            Text("Höchstens ein Bürotag – der Cheat-Day deckt ihn ab, die Serie bleibt.")
+                .font(.callout).foregroundStyle(Palette.ink2)
+        } else {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("\(week.walk_days) / \(week.required_days)")
+                    .font(.system(size: 34, weight: .semibold))
+                    .foregroundStyle(Palette.ink)
+                    .contentTransition(.numericText())
+                Text("Lauftage").foregroundStyle(Palette.ink2)
+            }
+            Meter(progress: week.fraction)
+        }
+
+        HStack(alignment: .bottom, spacing: 16) {
+            dayBars
+            Spacer(minLength: 12)
+            VStack(alignment: .trailing, spacing: 4) {
+                switch week.state {
+                case "reached":
+                    HStack(spacing: 5) {
+                        Image(systemName: "checkmark.seal.fill").foregroundStyle(Palette.statusGood)
+                        Text("Woche geschafft").foregroundStyle(Palette.ink)
+                    }
+                    .font(.callout.weight(.semibold))
+                case "free":
+                    EmptyView()
+                default:
+                    Text("Noch \(week.daysLeft) \(week.daysLeft == 1 ? "Lauftag" : "Lauftage")")
+                        .font(.callout.weight(.semibold)).foregroundStyle(Palette.ink)
+                    Text("bis Sonntag · Wochenende zählt mit")
+                        .font(.caption).foregroundStyle(Palette.ink2)
+                }
+            }
+        }
+    }
+
+    private func ruleLine(_ week: WeekStreak) -> String {
+        let cheat = week.cheat_days == 1 ? "1 Cheat-Day" : "\(week.cheat_days) Cheat-Days"
+        return "\(week.office_days) \(week.office_days == 1 ? "Bürotag" : "Bürotage") · \(cheat) · je mind. 5 min"
+    }
+
+    /// Wo du insgesamt auf der Bodensee-Runde waerst (Start in Konstanz, danach Runde um Runde).
     private var bodenseeLine: String {
-        let lap = JourneyProgress(route: JourneyRoute.all[0], walkedKm: progress.weekKm,
-                                  geometry: RouteGeometryStore.shared.geometries["bodensee"])
-        let start = JourneyRoute.all[0].waypoints[0].name
-        guard let next = lap.nextStage else { return "Einmal rum – zurück in Konstanz!" }
-        let nextText = "nächster Ort: \(next.name) in \(Fmt.num(next.remainingKm, 1)) km"
-        return lap.lastReachedStage == start
-            ? "Diese Woche ab \(start) unterwegs · \(nextText)"
-            : "Diese Woche bis \(lap.lastReachedStage) · \(nextText)"
+        let route = JourneyRoute.all[0]
+        let geometry = RouteGeometryStore.shared.geometries["bodensee"]
+        let lapKm = geometry?.totalKm ?? route.officialKm
+        let laps = lapKm > 0 ? Int(progress.totalKm / lapKm) : 0
+        let lap = JourneyProgress(route: route, walkedKm: progress.totalKm - Double(laps) * lapKm, geometry: geometry)
+        let lapsText = laps > 0 ? "\(laps)× rum, jetzt " : ""
+        guard let next = lap.nextStage else { return "Bodensee: \(lapsText)zurück in Konstanz" }
+        return "Bodensee: \(lapsText)bis \(lap.lastReachedStage) · nächster Ort \(next.name) in \(Fmt.num(next.remainingKm, 1)) km"
     }
 
     private func distance(_ label: String, _ km: Double, _ detail: String) -> some View {
@@ -186,62 +184,6 @@ struct WeekGoalCard: View {
     }
 }
 
-struct GoalMenu: View {
-    let current: Double
-    let setGoal: (Double, String) -> Void
-    @State private var showCustom = false
-    @State private var customKm: Double = 40
-
-    var body: some View {
-        Menu {
-            ForEach(GoalPreset.all) { preset in
-                Button {
-                    setGoal(preset.km, preset.label)
-                } label: {
-                    if abs(preset.km - current) < 0.05 {
-                        Label("\(preset.label) · \(Fmt.num(preset.km, 0)) km", systemImage: "checkmark")
-                    } else {
-                        Text("\(preset.label) · \(Fmt.num(preset.km, 0)) km")
-                    }
-                }
-            }
-            Divider()
-            Button("Eigenes Ziel …") {
-                customKm = current
-                showCustom = true
-            }
-        } label: {
-            Label("Ziel", systemImage: "target")
-        }
-        .menuStyle(.button)
-        .buttonStyle(.glass)
-        .fixedSize()
-        .popover(isPresented: $showCustom, arrowEdge: .bottom) {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Eigenes Wochenziel").font(.headline)
-                HStack {
-                    TextField("km", value: $customKm, format: .number.precision(.fractionLength(0...1)).locale(Fmt.de))
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 90)
-                    Stepper("km pro Woche", value: $customKm, in: 1...2000, step: 5)
-                }
-                Text("≈ \(Fmt.num(customKm / 7, 1)) km pro Tag").font(.caption).foregroundStyle(.secondary)
-                HStack {
-                    Spacer()
-                    Button("Übernehmen") {
-                        setGoal(customKm, "\(Fmt.num(customKm, customKm.rounded() == customKm ? 0 : 1)) km")
-                        showCustom = false
-                    }
-                    .buttonStyle(.glassProminent)
-                    .keyboardShortcut(.defaultAction)
-                }
-            }
-            .padding(16)
-            .frame(width: 300)
-        }
-    }
-}
-
 // MARK: - Kompakt fuer Panel und Widget
 
 struct WeekCompactView: View {
@@ -249,14 +191,17 @@ struct WeekCompactView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("Wochenziel").font(.caption.weight(.semibold)).foregroundStyle(Palette.ink)
-                Text(progress.goalLabel).font(.caption).foregroundStyle(Palette.ink2).lineLimit(1)
-                Spacer()
-                Text("\(Fmt.num(progress.fraction * 100, progress.fraction < 0.1 ? 1 : 0)) %")
-                    .font(.caption.weight(.semibold)).monospacedDigit().foregroundStyle(Palette.ink)
+            if let week = progress.weekStreak {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Wochen-Streak").font(.caption.weight(.semibold)).foregroundStyle(Palette.ink)
+                    Text("\(week.current) \(week.current == 1 ? "Woche" : "Wochen")")
+                        .font(.caption).foregroundStyle(Palette.ink2).lineLimit(1)
+                    Spacer()
+                    Text(week.state == "free" ? "frei" : "\(week.walk_days)/\(week.required_days) Tage")
+                        .font(.caption.weight(.semibold)).monospacedDigit().foregroundStyle(Palette.ink)
+                }
+                Meter(progress: week.fraction)
             }
-            Meter(progress: min(progress.fraction, 1))
             HStack {
                 compact("Heute", progress.todayKm)
                 compact("Woche", progress.weekKm)

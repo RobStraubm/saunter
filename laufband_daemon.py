@@ -42,6 +42,7 @@ from walk_session import (
     find_characteristics,
     log_workout_csv,
     parse_status_packet,
+    scan_treadmills,
     send_trigger_message,
 )
 
@@ -69,7 +70,7 @@ def load_config() -> dict:
 
 
 def compute_streak(per_day: dict, marks: dict, today: date, start: date, required_s: float,
-                   weekdays_only: bool) -> dict:
+                   weekdays_only: bool, cheat_days: int = 1) -> dict:
     """Wanderstreak: jeder Werktag braucht `required_s` aktive Sekunden. Wochenenden und als
     'nicht im Buero' markierte Tage sind freiwillig. Verpasste Werktage ab `start` ohne Antwort
     bleiben 'pending' (Frage an den Nutzer) und brechen die Serie nicht."""
@@ -116,6 +117,45 @@ def compute_streak(per_day: dict, marks: dict, today: date, start: date, require
     for i in range(7):
         day = week_start + timedelta(days=i)
         week.append({"date": day.isoformat(), "state": state(day), "minutes": round(per_day.get(day, 0.0) / 60, 1)})
+    # Letzte vier Wochen zum Nachtragen in der App ("war ich da im Buero?")
+    recent = []
+    for i in range(27, -1, -1):
+        day = today - timedelta(days=i)
+        recent.append({"date": day.isoformat(), "state": state(day), "minutes": round(per_day.get(day, 0.0) / 60, 1)})
+    # Wochen-Streak: pro Woche (Mo-So) so viele Lauftage wie Buerotage minus Cheat-Day.
+    # Wochen ohne Ziel (Urlaub) sind neutral, die laufende Woche bricht die Serie nie.
+    def week_info(ws: date) -> dict:
+        office = sum(1 for i in range(5) if state(ws + timedelta(days=i)) != "excused")
+        required = max(0, office - cheat_days)
+        walked = sum(1 for i in range(7) if per_day.get(ws + timedelta(days=i), 0.0) >= required_s)
+        if required == 0:
+            st = "free"
+        elif walked >= required:
+            st = "reached"
+        elif ws + timedelta(days=6) >= today:
+            st = "open"
+        else:
+            st = "missed"
+        return {"office_days": office, "required_days": required, "walk_days": walked, "state": st}
+
+    weeks = []
+    ws = start - timedelta(days=start.weekday())
+    while ws <= week_start:
+        weeks.append(week_info(ws))
+        ws += timedelta(days=7)
+    week_current = 0
+    for w in reversed(weeks):
+        if w["state"] == "missed":
+            break
+        week_current += w["state"] == "reached"
+    week_best, run = 0, 0
+    for w in weeks:
+        if w["state"] == "missed":
+            run = 0
+        elif w["state"] == "reached":
+            run += 1
+            week_best = max(week_best, run)
+
     return {
         "current": current,
         "best": max(best, current),
@@ -124,6 +164,14 @@ def compute_streak(per_day: dict, marks: dict, today: date, start: date, require
         "at_risk": state(today) == "open",
         "pending": sorted(pending),
         "week": week,
+        "recent": recent,
+        "week_streak": {
+            "current": week_current,
+            "best": week_best,
+            "weeks_reached": sum(w["state"] == "reached" for w in weeks),
+            "cheat_days": cheat_days,
+            **weeks[-1],
+        },
     }
 
 
@@ -377,6 +425,10 @@ class Daemon:
     async def ble_loop(self):
         backoff = 2
         while True:
+            if not self.cfg.get("address"):
+                # Noch kein Laufband gewaehlt (Einrichtung in der App)
+                await asyncio.sleep(2)
+                continue
             try:
                 await self._connect_and_run()
                 backoff = 2
@@ -390,7 +442,8 @@ class Daemon:
 
     async def _connect_and_run(self):
         disconnected = asyncio.Event()
-        async with BleakClient(self.cfg["address"], timeout=15,
+        address = self.cfg["address"]
+        async with BleakClient(address, timeout=15,
                                disconnected_callback=lambda _c: disconnected.set()) as client:
             write_char, notify_char = find_characteristics(client)
             if write_char is None or notify_char is None:
@@ -425,6 +478,8 @@ class Daemon:
                     await write(bytes([SYS_STATUS]), None)
                 if time.time() - self.last_packet_ts > STALE_AFTER_S:
                     raise RuntimeError("Laufband antwortet nicht mehr")
+                if self.cfg.get("address") != address:
+                    raise RuntimeError("Anderes Laufband gewaehlt")
             log.info("Verbindung getrennt")
 
     def _set_disconnected(self):
@@ -751,6 +806,15 @@ class Daemon:
             },
             "totals": self.totals(now),
             "streak": self.streak(now),
+            "setup": {
+                "done": bool(self.cfg.get("setup_done", bool(self.cfg.get("address")))),
+                "address": self.cfg.get("address", ""),
+                "device_name": self.cfg.get("device_name", ""),
+                "height_cm": self.cfg["height_cm"],
+                "weight_kg": self.cfg["weight_kg"],
+                "sex": self.cfg["sex"],
+                "imessage_target": self.cfg.get("imessage_target", ""),
+            },
         }
 
     def update_settings(self, params: dict) -> dict:
@@ -767,6 +831,25 @@ class Daemon:
             if not 100 <= steps <= 100_000:
                 raise CommandError("Tagesziel muss zwischen 100 und 100.000 Schritten liegen", 400)
             changes["daily_step_goal"] = steps
+        if "address" in params:
+            if self.session is not None or self.band_moving:
+                raise CommandError("Erst das Training beenden, dann das Laufband wechseln")
+            changes["address"] = str(params["address"]).strip()[:64]
+            changes["device_name"] = str(params.get("device_name") or "")[:60]
+        for key, lo, hi, label in (("height_cm", 100, 230, "Größe"), ("weight_kg", 30, 250, "Gewicht")):
+            if key in params:
+                v = float(params[key])
+                if not lo <= v <= hi:
+                    raise CommandError(f"{label} muss zwischen {lo} und {hi} liegen", 400)
+                changes[key] = round(v)
+        if "sex" in params:
+            if params["sex"] not in ("male", "female"):
+                raise CommandError("sex muss male oder female sein", 400)
+            changes["sex"] = params["sex"]
+        if "imessage_target" in params:
+            changes["imessage_target"] = str(params["imessage_target"]).strip()[:100]
+        if "setup_done" in params:
+            changes["setup_done"] = bool(params["setup_done"])
         if not changes:
             raise CommandError("Keine gueltige Einstellung", 400)
         self._persist_config(changes)
@@ -797,7 +880,8 @@ class Daemon:
         return compute_streak(per_day, marks, datetime.fromtimestamp(now).date(),
                               date.fromisoformat(self.cfg["streak_start"]),
                               float(self.cfg.get("streak_min_minutes", 5)) * 60,
-                              bool(self.cfg.get("streak_weekdays_only", True)))
+                              bool(self.cfg.get("streak_weekdays_only", True)),
+                              int(self.cfg.get("week_cheat_days", 1)))
 
     def mark_streak_day(self, params: dict) -> dict:
         day = str(params.get("date") or date.today().isoformat())
@@ -876,6 +960,14 @@ def build_app(d: Daemon) -> web.Application:
         d._changed()
         return web.json_response({"ok": True, "result": result, "status": d.snapshot()})
 
+    async def scan(request):
+        try:
+            devices = await scan_treadmills()
+        except Exception as e:
+            log.warning("Geraetesuche fehlgeschlagen: %s", e)
+            return web.json_response({"ok": False, "error": f"Suche fehlgeschlagen: {e}"}, status=500)
+        return web.json_response({"ok": True, "devices": devices})
+
     async def websocket(request):
         ws = web.WebSocketResponse(heartbeat=20)
         await ws.prepare(request)
@@ -894,6 +986,7 @@ def build_app(d: Daemon) -> web.Application:
         web.get("/api/sessions", sessions),
         web.get("/api/sessions/{id:\\d+}/samples", samples),
         web.get("/api/zones", zones),
+        web.post("/api/scan", scan),
         web.post("/api/{action}", command),
         web.get("/ws", websocket),
     ])

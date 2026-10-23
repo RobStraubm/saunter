@@ -30,6 +30,26 @@ struct ConnectionPill: View {
     }
 }
 
+/// Laesst den Daemon das Laufband neu suchen; nur zeigen, solange keine Verbindung besteht.
+struct ReconnectButton: View {
+    @ObservedObject var model: TreadmillModel
+
+    var body: some View {
+        Button { model.reconnect() } label: {
+            if model.reconnecting {
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.small)
+                    Text("Suche …")
+                }
+            } else {
+                Label("Neu suchen", systemImage: "arrow.clockwise")
+            }
+        }
+        .disabled(model.reconnecting)
+        .help("Daemon neu starten und das Laufband neu suchen")
+    }
+}
+
 struct OfflineNotice: View {
     var body: some View {
         HStack(spacing: 10) {

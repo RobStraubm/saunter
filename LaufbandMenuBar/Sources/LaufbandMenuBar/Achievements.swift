@@ -16,7 +16,7 @@ struct AchievementStats {
 
     init() {}
 
-    init(sessions all: [WorkoutSession], streak: StreakInfo?, weeklyGoalKm: Double) {
+    init(sessions all: [WorkoutSession], streak: StreakInfo?) {
         let cal = deCalendar
         totalKm = all.reduce(0) { $0 + $1.distance_km }
         totalSteps = Double(all.reduce(0) { $0 + $1.steps })
@@ -24,17 +24,15 @@ struct AchievementStats {
         longestMinutes = (all.map(\.active_s).max() ?? 0) / 60
         farthestKm = all.map(\.distance_km).max() ?? 0
         var byDay: [Date: Int] = [:]
-        var byWeek: [Date: Double] = [:]
         for s in all {
             byDay[cal.startOfDay(for: s.start), default: 0] += s.steps
-            byWeek[cal.dateInterval(of: .weekOfYear, for: s.start)!.start, default: 0] += s.distance_km
             let hour = cal.component(.hour, from: s.start)
             if hour < 8 && s.active_s >= 300 { earlyBird += 1 }
             if hour >= 21 && s.active_s >= 300 { nightOwl += 1 }
             if s.active_s >= 600 && s.avgSpeed >= 5 { fastSessions += 1 }
         }
         maxDaySteps = Double(byDay.values.max() ?? 0)
-        weeksGoalReached = Double(byWeek.values.filter { $0 >= weeklyGoalKm && weeklyGoalKm > 0 }.count)
+        weeksGoalReached = Double(streak?.week_streak?.weeks_reached ?? 0)
         streakBest = Double(streak?.best ?? 0)
     }
 }
@@ -105,7 +103,7 @@ enum AchievementCatalog {
         }
 
         let special = "Besonderes"
-        add("week-goal", special, "Wochenziel geschafft", "Einmal das Wochenziel erreicht", "Wochenziel erreicht – was für eine Woche!", "target", 1, "Woche") { $0.weeksGoalReached }
+        add("week-goal", special, "Woche geschafft", "Einmal genug Lauftage in einer Woche", "Woche geschafft – was für eine Woche!", "target", 1, "Woche") { $0.weeksGoalReached }
         add("early", special, "Frühaufsteher", "Training vor 8 Uhr", "Früh auf den Beinen – Training vor 8 Uhr!", "sunrise.fill", 1, "Training") { $0.earlyBird }
         add("night", special, "Nachteule", "Training nach 21 Uhr", "Abends noch eine Runde – Respekt!", "moon.stars.fill", 1, "Training") { $0.nightOwl }
 
@@ -176,7 +174,7 @@ final class AchievementCenter: ObservableObject {
                                                                distance_km: s.distance_km, kcal: s.kcal, steps: s.steps,
                                                                max_speed_kmh: s.max_speed, avg_speed_kmh: nil, has_samples: 1)]
         }
-        let stats = AchievementStats(sessions: all, streak: status?.streak, weeklyGoalKm: status?.weekly_goal?.km ?? 0)
+        let stats = AchievementStats(sessions: all, streak: status?.streak)
         let firstRun = UserDefaults.standard.object(forKey: "achievements.initialized") == nil
         var newlyUnlocked: [Achievement] = []
         states = AchievementCatalog.all().map { a in

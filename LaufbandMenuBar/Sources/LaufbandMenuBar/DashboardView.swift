@@ -141,6 +141,10 @@ struct DashboardView: View {
                 GlassSegmented(items: DashboardTab.allCases, selection: $tab, title: \.rawValue, symbol: \.symbol)
                 Spacer(minLength: 8)
                 ConnectionPill(status: live.daemonReachable ? live.status : nil)
+                if !live.daemonReachable || live.status?.phase == "offline" || live.reconnecting {
+                    ReconnectButton(model: live)
+                        .buttonStyle(.glass)
+                }
                 if tab != .journey && tab != .achievements {
                     GlassSegmented(items: StatsRange.allCases, selection: $range, title: \.rawValue)
                     if tab != .sessions {
@@ -232,9 +236,7 @@ struct DashboardPage: View {
                                           forecast: forecast, streak: streak, journey: progress,
                                           wanderstreak: live.status?.streak)
 
-        WeekGoalCard(progress: WeekProgress(status: live.status, sessions: sessions)) { km, label in
-            live.setWeeklyGoal(km: km, label: label)
-        }
+        WeekGoalCard(progress: WeekProgress(status: live.status, sessions: sessions))
 
         HStack(alignment: .top, spacing: 16) {
             HeroCard(stats: stats)

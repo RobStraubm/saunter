@@ -6,6 +6,7 @@ let apiBase = URL(string: "http://127.0.0.1:8765/api/")!
 let openDashboardNotification = Notification.Name("de.straubmueller.laufband.openDashboard")
 let openStoryNotification = Notification.Name("de.straubmueller.laufband.openStory")
 let openJourneyNotification = Notification.Name("de.straubmueller.laufband.openJourney")
+let openSetupNotification = Notification.Name("de.straubmueller.laufband.openSetup")
 
 func postOpen(_ name: Notification.Name) {
     DistributedNotificationCenter.default().postNotificationName(name, object: nil, userInfo: nil, deliverImmediately: true)
@@ -56,11 +57,6 @@ struct DistanceTotals: Decodable {
     let total: PeriodSum
 }
 
-struct WeeklyGoal: Decodable {
-    let km: Double
-    let label: String
-}
-
 struct Status: Decodable {
     let phase: String
     let connected: Bool
@@ -74,9 +70,9 @@ struct Status: Decodable {
     let last_error: String?
     let auto_finish_after_s: Int
     let daily_step_goal: Int?
-    let weekly_goal: WeeklyGoal?
     let totals: DistanceTotals?
     let streak: StreakInfo?
+    let setup: SetupInfo?
 }
 
 struct CommandResponse: Decodable {
@@ -149,6 +145,8 @@ final class TreadmillModel: ObservableObject {
     @Published private(set) var rawTarget: Double?
     @Published private(set) var scrubbing = false
     @Published private(set) var sending = false
+    /// "Neu suchen" laeuft, bis das Laufband verbunden ist oder die Frist ablaeuft.
+    @Published private(set) var reconnecting = false
 
     @Published var pauseOnLock = UserDefaults.standard.object(forKey: "pauseOnLock") as? Bool ?? true {
         didSet { UserDefaults.standard.set(pauseOnLock, forKey: "pauseOnLock") }
@@ -165,10 +163,11 @@ final class TreadmillModel: ObservableObject {
     @Published var autoPauseNote: String?
     var pausedByLock = false
     var autoPausedAt: Date?
-    var bodenseeGoalChecked = false
     var integrationEnabled = false
     var lastTodayDone: Bool?
     var lastReminderCheck = Date.distantPast
+    var lastOfficeCheck = Date.distantPast
+    var setupShown = false
     var hotKeys: HotKeyCenter?
     var observers: [NSObjectProtocol] = []
 
@@ -199,10 +198,6 @@ final class TreadmillModel: ObservableObject {
             status = try JSONDecoder().decode(Status.self, from: data)
             daemonReachable = true
             clearAutoPauseNoteIfResolved()
-            if !bodenseeGoalChecked, status?.weekly_goal != nil, RouteGeometryStore.shared.geometries["bodensee"] != nil {
-                bodenseeGoalChecked = true
-                syncBodenseeGoal()
-            }
             afterStatusUpdate()
         } catch {
             daemonReachable = false
@@ -249,8 +244,32 @@ final class TreadmillModel: ObservableObject {
         Task { await send(action, body) }
     }
 
-    func setWeeklyGoal(km: Double, label: String) {
-        run("settings", ["weekly_goal_km": km, "weekly_goal_label": label])
+    /// Startet den Daemon neu, damit er das Laufband frisch sucht. Hilft, wenn seine
+    /// Bluetooth-Verbindung haengt, obwohl das Band an ist. Nur auf Knopfdruck, nie automatisch.
+    func reconnect() {
+        guard !reconnecting else { return }
+        reconnecting = true
+        errorText = nil
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+        p.arguments = ["kickstart", "-k", "gui/\(getuid())/de.straubmueller.laufbanddaemon"]
+        do {
+            try p.run()
+        } catch {
+            errorText = "Neustart fehlgeschlagen: \(error.localizedDescription)"
+            reconnecting = false
+            return
+        }
+        Task {
+            for _ in 0..<20 {
+                try? await Task.sleep(for: .seconds(1))
+                if daemonReachable, status?.connected == true { break }
+            }
+            if status?.connected != true {
+                errorText = "Laufband nicht gefunden – ist es an und die FitShow-App geschlossen?"
+            }
+            reconnecting = false
+        }
     }
 
     /// status: excused (nicht im Buero), present (war im Buero), clear (Markierung entfernen)
@@ -459,6 +478,8 @@ struct PanelView: View {
                     Text("Daemon läuft nicht").font(.headline)
                 }
                 Text("Details: laufband log").font(.caption.monospaced()).foregroundStyle(Palette.ink2)
+                ReconnectButton(model: model)
+                    .buttonStyle(.glass)
             }
 
             if let err = model.errorText ?? model.status?.last_error {
@@ -530,12 +551,26 @@ struct PanelView: View {
     private func buttons(_ s: Status) -> some View {
         switch s.phase {
         case "offline":
-            Text("Laufband einschalten – verbindet sich automatisch. Die FitShow-App muss geschlossen sein.")
-                .font(.caption).foregroundStyle(Palette.ink2)
-            if s.session != nil {
-                Button("Training beenden") { model.run("stop") }
-                    .buttonStyle(.glass)
+            if s.setup?.done == false || s.setup?.address.isEmpty == true {
+                Button {
+                    openWindow(id: "setup")
+                    NSApp.activate()
+                } label: {
+                    Label("Laufband einrichten", systemImage: "gearshape").frame(maxWidth: .infinity)
+                }
+                .controlSize(.large)
+                .buttonStyle(.glassProminent)
+            } else {
+                Text("Laufband einschalten – verbindet sich automatisch. Die FitShow-App muss geschlossen sein.")
+                    .font(.caption).foregroundStyle(Palette.ink2)
             }
+            HStack {
+                ReconnectButton(model: model)
+                if s.session != nil {
+                    Button("Training beenden") { model.run("stop") }
+                }
+            }
+            .buttonStyle(.glass)
         case "idle", "error":
             Button {
                 model.commitTarget()
@@ -640,6 +675,15 @@ struct AutomationSection: View {
                     .font(.caption2)
                     .foregroundStyle(Palette.muted)
                     .fixedSize(horizontal: false, vertical: true)
+                Divider().padding(.vertical, 2)
+                OfficeNetworkRow()
+                Divider().padding(.vertical, 2)
+                Button {
+                    postOpen(openSetupNotification)
+                } label: {
+                    Label("Einrichtung (Laufband, Körperdaten, Health) …", systemImage: "gearshape")
+                }
+                .buttonStyle(.borderless)
             }
             .toggleStyle(.switch)
             .controlSize(.mini)
@@ -671,6 +715,18 @@ struct MenuBarLabel: View {
             .onReceive(DistributedNotificationCenter.default().publisher(for: openStoryNotification)) { _ in
                 openWindow(id: "story")
                 NSApp.activate()
+            }
+            .onReceive(DistributedNotificationCenter.default().publisher(for: openSetupNotification)) { _ in
+                openWindow(id: "setup")
+                NSApp.activate()
+            }
+            .onChange(of: model.status?.setup?.done) { _, done in
+                // Erster Start ohne Einrichtung: das Fenster einmal von selbst oeffnen
+                if done == false, !model.setupShown {
+                    model.setupShown = true
+                    openWindow(id: "setup")
+                    NSApp.activate()
+                }
             }
     }
 
@@ -735,6 +791,13 @@ struct LaufbandMenuBarApp: App {
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentMinSize)
         .defaultSize(width: 1280, height: 980)
+        .defaultLaunchBehavior(.suppressed)
+        .handlesExternalEvents(matching: [])
+
+        Window("Einrichtung", id: "setup") {
+            SetupView(model: model)
+        }
+        .windowResizability(.contentSize)
         .defaultLaunchBehavior(.suppressed)
         .handlesExternalEvents(matching: [])
 

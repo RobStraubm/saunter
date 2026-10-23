@@ -155,21 +155,11 @@ async def laufband_status() -> dict:
         "heute": heute,
         "fehler": status["last_error"],
     }
-    totals, goal = status.get("totals"), status.get("weekly_goal")
+    totals = status.get("totals")
     if totals:
         result["diese_woche_km"] = round(totals["week"]["km"], 2)
         result["insgesamt_km"] = round(totals["total"]["km"], 2)
         result["insgesamt_trainings"] = totals["total"]["n"]
-        if goal:
-            done = totals["week"]["km"]
-            days_left = 7 - date.today().weekday()
-            result["wochenziel"] = {
-                "ziel": goal["label"],
-                "ziel_km": goal["km"],
-                "geschafft_km": round(done, 2),
-                "geschafft_prozent": round(100 * done / goal["km"], 1) if goal["km"] else None,
-                "noetig_pro_tag_km": round(max(0, goal["km"] - done) / days_left, 1),
-            }
     streak = status.get("streak")
     if streak:
         result["wanderstreak"] = {
@@ -179,6 +169,16 @@ async def laufband_status() -> dict:
             "heute": streak["today"],
             "offene_fragen_im_buero": streak["pending"],
         }
+        week = streak.get("week_streak")
+        if week:
+            result["wochen_streak"] = {
+                "wochen": week["current"],
+                "rekord": week["best"],
+                "regel": f"pro Woche Buerotage minus {week['cheat_days']} Cheat-Day als Lauftage (mind. "
+                         f"{streak['required_min']:g} min, Wochenende zaehlt mit); Wochen ohne Ziel sind neutral",
+                "diese_woche": {"lauftage": week["walk_days"], "ziel": week["required_days"],
+                                "buerotage": week["office_days"], "stand": week["state"]},
+            }
     return result
 
 
@@ -300,15 +300,6 @@ async def laufband_tempo_verlauf(training_id: int | None = None) -> dict:
         "tempowechsel_minute_kmh": changes,
         "zeit_je_tempobereich": {k: _fmt_duration(v) for k, v in zones.items() if v > 0},
     }
-
-
-@server.tool(annotations=CONTROL)
-async def laufband_wochenziel_setzen(ziel_km: float, bezeichnung: str | None = None) -> dict:
-    """Setzt das Wochenziel in km (z. B. 260 = einmal um den Bodensee, 65 = eine Viertelrunde).
-    Nur auf Wunsch des Nutzers aendern."""
-    resp = await _post("/settings", {"weekly_goal_km": ziel_km, "weekly_goal_label": bezeichnung or f"{ziel_km:g} km"})
-    return {"ok": resp.get("ok", False), "fehler": resp.get("error"),
-            "wochenziel": (resp.get("status") or {}).get("weekly_goal")}
 
 
 @server.tool(annotations=CONTROL)
